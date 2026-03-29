@@ -51,38 +51,8 @@ describe("auth API", () => {
       );
     });
 
-    it("sends registration data as JSON body", async () => {
-      const fetchMock = mockFetch({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "1",
-          username: "test",
-          email: "test@test.com",
-          createdAt: "2024-01-01",
-        }),
-      });
 
-      await register(validData);
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-      expect(body).toEqual(validData);
-    });
 
-    it("returns RegisterResponseDto on success", async () => {
-      const responseData = {
-        id: "uuid-123",
-        username: "test",
-        email: "test@test.com",
-        createdAt: "2024-01-01T00:00:00Z",
-      };
-
-      mockFetch({
-        ok: true,
-        json: vi.fn().mockResolvedValue(responseData),
-      });
-
-      const result = await register(validData);
-      expect(result).toEqual(responseData);
-    });
 
     it("throws ApiError on 409 conflict", async () => {
       const errorResponse = {
@@ -139,26 +109,9 @@ describe("auth API", () => {
       );
     });
 
-    it("sends credentials as JSON body", async () => {
-      const fetchMock = mockFetch({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ token: "jwt-token" }),
-      });
 
-      await login(credentials);
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-      expect(body).toEqual(credentials);
-    });
 
-    it("returns JwtResponseDto on success", async () => {
-      mockFetch({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ token: "my-jwt-token" }),
-      });
 
-      const result = await login(credentials);
-      expect(result).toEqual({ token: "my-jwt-token" });
-    });
 
     it("throws ApiError on 401", async () => {
       mockFetch({

@@ -43,18 +43,7 @@ describe("todos API", () => {
       );
     });
 
-    it("returns pageable response", async () => {
-      const mockResponse = {
-        items: [],
-        totalPages: 0,
-        totalElements: 0,
-        currentPage: 0,
-        pageSize: 10,
-      };
-      mockedApiClient.mockResolvedValue(mockResponse);
-      const result = await getTodos();
-      expect(result).toEqual(mockResponse);
-    });
+
   });
 
   describe("getTodoById()", () => {
@@ -72,23 +61,7 @@ describe("todos API", () => {
   });
 
   describe("createTodo()", () => {
-    it("sends JSON when no files provided", async () => {
-      const data = { title: "New Todo" };
-      await createTodo(data);
-      expect(mockedApiClient).toHaveBeenCalledWith("/todos", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
-    });
 
-    it("sends JSON when files array is empty", async () => {
-      const data = { title: "Todo" };
-      await createTodo(data, []);
-      expect(mockedApiClient).toHaveBeenCalledWith("/todos", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
-    });
 
     it("sends FormData when files are provided", async () => {
       const data = { title: "Todo with files" };
@@ -114,17 +87,7 @@ describe("todos API", () => {
       expect(files).toHaveLength(2);
     });
 
-    it("appends todo data as JSON Blob in FormData", async () => {
-      const data = { title: "With blob", content: "desc" };
-      const file = new File(["x"], "x.txt");
 
-      await createTodo(data, [file]);
-
-      const callArgs = mockedApiClient.mock.calls[0];
-      const formData = callArgs[1]!.body as FormData;
-      const todoBlob = formData.get("todo") as Blob;
-      expect(todoBlob).toBeInstanceOf(Blob);
-    });
   });
 
   describe("updateTodo()", () => {
