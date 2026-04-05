@@ -286,7 +286,7 @@ test.describe('Deep End-to-End Journeys', () => {
 
     await page.goto('/profile');
     await expect(page.getByRole('heading', { name: 'Профиль' })).toBeVisible();
-    await expect(page.getByText(user.username)).toBeVisible();
+    await expect(page.getByRole('main').getByText(user.username, { exact: true })).toBeVisible();
 
     await logout(page);
     await page.goto('/dashboard');
