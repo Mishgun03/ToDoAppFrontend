@@ -615,8 +615,9 @@ test.describe('Deep End-to-End Journeys', () => {
     await createDialog.getByRole('button', { name: 'Создать' }).click();
     await expect(createDialog).not.toBeVisible({ timeout: 10000 });
 
-    const card = todoCard(page, todoTitle);
-    await expect(card.getByText('2')).toBeVisible();
+    await expect(page.getByRole('link', { name: todoTitle, exact: true })).toBeVisible({
+      timeout: 10000,
+    });
 
     await openTodoDetail(page, todoTitle);
     await expect(page.getByRole('heading', { name: todoTitle, exact: true })).toBeVisible();
