@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { test, expect, type Locator, type Page } from '@playwright/test';
 
 const API_BASE = process.env.E2E_API_URL || 'http://localhost:8080/api/v1';
@@ -30,6 +32,21 @@ interface EditFields {
 
 function uniqueValue(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function uploadFixturePath(fileName: string): string {
+  return path.resolve(process.cwd(), 'public', fileName);
+}
+
+async function uploadFilesFromDialog(
+  page: Page,
+  dialog: Locator,
+  fileNames: string[],
+): Promise<void> {
+  const fileChooserPromise = page.waitForEvent('filechooser');
+  await dialog.getByText('Нажмите для выбора файлов', { exact: true }).click();
+  const fileChooser = await fileChooserPromise;
+  await fileChooser.setFiles(fileNames.map(uploadFixturePath));
 }
 
 function buildUser(): TestUser {
@@ -482,7 +499,8 @@ test.describe('Deep End-to-End Journeys', () => {
 
     await openTodoDetail(page, originalTitle);
     await expect(page.getByText('Проверка согласованности карточки и детальной страницы')).toBeVisible();
-    await expect(page.getByText('Medium', { exact: true })).toBeVisible();
+    //await expect(page.getByText('Medium', { exact: true })).toBeVisible();
+    await expect(page.getByRole('main').getByText('Medium', { exact: true })).toBeVisible();
     await expect(page.getByText('Daily')).toBeVisible();
 
     await editTodoFromDetail(page, {
@@ -499,7 +517,8 @@ test.describe('Deep End-to-End Journeys', () => {
 
     await openTodoDetail(page, updatedTitle);
     await expect(page.getByText('После изменения карточка и детали должны совпадать')).toBeVisible();
-    await expect(page.getByText('High', { exact: true })).toBeVisible();
+    //await expect(page.getByText('High', { exact: true })).toBeVisible();
+    await expect(page.getByRole('main').getByText('High', { exact: true })).toBeVisible();
   });
 
   test('J8: work through a paginated list, update a note from page two, find it, and remove it', async ({
@@ -547,8 +566,18 @@ test.describe('Deep End-to-End Journeys', () => {
     await dialog.getByRole('button', { name: 'Удалить' }).click();
     await page.waitForURL('**/dashboard', { timeout: 10000 });
 
-    await searchTodos(page, 'обновлено');
-    await expect(page.getByText(/Ничего не найдено по запросу/i)).toBeVisible();
+
+    // After delete + redirect back to dashboard:
+    await page.waitForURL('**/dashboard', { timeout: 10000 });
+
+    // Clear any stale search state — reload to be sure
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+
+    await searchTodos(page, updatedTitle);  // search for the exact deleted title, not just 'обновлено'
+    await expect(page.getByText(/Ничего не найдено по запросу/i)).toBeVisible({ timeout: 10000 });
+
+
   });
 
   test('J9: reject a duplicate account, recover from a bad password, and continue a note workflow', async ({
@@ -585,76 +614,87 @@ test.describe('Deep End-to-End Journeys', () => {
     await expect(page.getByText('Должна остаться после восстановления')).toBeVisible();
   });
 
-  test('J10: upload files to a note, add another file later, verify them in detail and profile, then delete the note', async ({
+  test('J10: create a note with attachments, extend it from detail view, verify storage, and delete it from search', async ({
     page,
   }) => {
     await registerAndLogin(page);
 
-    const todoTitle = uniqueValue('файлы-для-заявки');
-    const updatedTitle = `${todoTitle}-проверено`;
+    const originalTitle = uniqueValue('вложение-задача');
+    const updatedTitle = `${originalTitle}-обновлено`;
+    const initialFiles = ['file.svg', 'globe.svg'];
+    const addedFile = 'window.svg';
 
     await page.getByRole('button', { name: /Новая задача/i }).click();
 
     const createDialog = page.getByRole('dialog', { name: 'Новая задача' });
     await expect(createDialog).toBeVisible();
-    await createDialog.locator('#create-title').fill(todoTitle);
-    await createDialog.locator('#create-content').fill('Заметка с файлами для проверки загрузки');
-    await createDialog.locator('input[type="file"]').setInputFiles([
-      {
-        name: 'brief.txt',
-        mimeType: 'text/plain',
-        buffer: Buffer.from('brief file for upload scenario'),
-      },
-      {
-        name: 'evidence.json',
-        mimeType: 'application/json',
-        buffer: Buffer.from('{"ok":true}'),
-      },
-    ]);
-    await expect(createDialog.locator('ul')).toContainText([
-      'brief.txt',
-      'evidence.json',
-    ]);
+
+    await createDialog.locator('#create-title').fill(originalTitle);
+    await createDialog.locator('#create-content').fill('Заметка с несколькими вложениями');
+    await uploadFilesFromDialog(page, createDialog, initialFiles);
+
+    for (const fileName of initialFiles) {
+      await expect(createDialog.getByText(fileName, { exact: true })).toBeVisible();
+    }
 
     await createDialog.getByRole('button', { name: 'Создать' }).click();
     await expect(createDialog).not.toBeVisible({ timeout: 10000 });
 
-    await expect(page.getByRole('link', { name: todoTitle, exact: true })).toBeVisible({
-      timeout: 10000,
-    });
+    const card = todoCard(page, originalTitle);
+    await expect(card).toBeVisible({ timeout: 10000 });
+    await expect(card.getByText('2', { exact: true })).toBeVisible();
 
-    await openTodoDetail(page, todoTitle);
-    await expect(page.getByRole('heading', { name: todoTitle, exact: true })).toBeVisible();
-    await expect(page.getByText('Файлы (2)')).toBeVisible();
-    await expect(page.getByText('brief.txt')).toBeVisible();
-    await expect(page.getByText('evidence.json')).toBeVisible();
+    await openTodoDetail(page, originalTitle);
+
+    const main = page.getByRole('main');
+    await expect(main.getByText('Файлы (2)', { exact: true })).toBeVisible();
+    for (const fileName of initialFiles) {
+      await expect(main.getByText(fileName, { exact: true })).toBeVisible();
+    }
 
     await page.getByRole('button', { name: /Изменить/i }).click();
+
     const editDialog = page.getByRole('dialog', { name: 'Редактировать задачу' });
     await expect(editDialog).toBeVisible();
     await editDialog.locator('#edit-title').fill(updatedTitle);
-    await editDialog.locator('#edit-content').fill('После редактирования к заметке добавлен третий файл');
-    await editDialog.locator('input[type="file"]').setInputFiles({
-      name: 'notes.md',
-      mimeType: 'text/markdown',
-      buffer: Buffer.from('# uploaded later'),
-    });
-    await expect(editDialog.locator('ul').last()).toContainText('notes.md');
+
+    for (const fileName of initialFiles) {
+      await expect(editDialog.getByText(fileName, { exact: true })).toBeVisible();
+    }
+
+    await uploadFilesFromDialog(page, editDialog, [addedFile]);
+    await expect(editDialog.getByText(addedFile, { exact: true })).toBeVisible();
 
     await editDialog.getByRole('button', { name: 'Сохранить' }).click();
     await expect(editDialog).not.toBeVisible({ timeout: 10000 });
 
-    await expect(page.getByRole('heading', { name: updatedTitle, exact: true })).toBeVisible();
-    await expect(page.getByText('Файлы (3)')).toBeVisible();
-    await expect(page.getByText('notes.md')).toBeVisible();
+    await expect(page.getByRole('heading', { name: updatedTitle, exact: true })).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(main.getByText('Файлы (3)', { exact: true })).toBeVisible({ timeout: 10000 });
+    for (const fileName of [...initialFiles, addedFile]) {
+      await expect(main.getByText(fileName, { exact: true })).toBeVisible();
+    }
 
     await page.goto('/profile');
     await expect(page.getByRole('heading', { name: 'Профиль' })).toBeVisible();
-    await expect(page.getByText(/Использовано|Хранилище|Место/i)).toBeVisible();
+    await expect(page.getByText('Хранилище', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('Хранилище включает все файлы, прикреплённые к вашим задачам'),
+    ).toBeVisible();
 
     await page.goto('/dashboard');
-    await searchTodos(page, 'проверено');
+    const searchResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/todos/search?') &&
+        response.url().includes(encodeURIComponent(updatedTitle)) &&
+        response.ok(),
+    );
+    await searchTodos(page, updatedTitle);
+    await searchResponsePromise;
     await expect(page.getByRole('link', { name: updatedTitle, exact: true })).toBeVisible();
+
     await deleteTodoFromCard(page, updatedTitle);
+    await expect(page.getByText(/Ничего не найдено по запросу/i)).toBeVisible();
   });
 });

@@ -86,7 +86,8 @@ export function CreateTodoDialog({
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files) {
-      setFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+      const selectedFiles = Array.from(e.target.files);
+      setFiles((prev) => [...prev, ...selectedFiles]);
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
