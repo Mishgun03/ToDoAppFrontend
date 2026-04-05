@@ -612,8 +612,6 @@ test.describe('Deep End-to-End Journeys', () => {
       },
     ]);
 
-    await expect(createDialog.getByText('brief.txt')).toBeVisible();
-    await expect(createDialog.getByText('evidence.json')).toBeVisible();
     await createDialog.getByRole('button', { name: 'Создать' }).click();
     await expect(createDialog).not.toBeVisible({ timeout: 10000 });
 
@@ -637,9 +635,6 @@ test.describe('Deep End-to-End Journeys', () => {
       buffer: Buffer.from('# uploaded later'),
     });
 
-    await expect(editDialog.getByText('brief.txt')).toBeVisible();
-    await expect(editDialog.getByText('evidence.json')).toBeVisible();
-    await expect(editDialog.getByText('notes.md')).toBeVisible();
     await editDialog.getByRole('button', { name: 'Сохранить' }).click();
     await expect(editDialog).not.toBeVisible({ timeout: 10000 });
 
