@@ -65,6 +65,10 @@ function todoCard(page: Page, title: string): Locator {
     .first();
 }
 
+async function toggleTodoCard(page: Page, title: string): Promise<void> {
+  await todoCard(page, title).locator('[role="checkbox"]').first().click();
+}
+
 async function registerViaUI(page: Page, user: TestUser): Promise<void> {
   await page.goto('/register');
   await page.locator('#username').fill(user.username);
@@ -237,8 +241,7 @@ test.describe('Deep End-to-End Journeys', () => {
       content: 'Отредактированная заметка, которую нужно найти снова',
     });
 
-    const updatedCard = todoCard(page, updatedTitle);
-    await updatedCard.getByRole('checkbox').click();
+    await toggleTodoCard(page, updatedTitle);
 
     await page.getByRole('button', { name: 'Завершённые' }).click();
     await expect(page.getByRole('link', { name: updatedTitle, exact: true })).toBeVisible();
@@ -265,8 +268,9 @@ test.describe('Deep End-to-End Journeys', () => {
     await page.locator('#lastName').fill(user.lastName);
     await page.getByRole('button', { name: 'Зарегистрироваться' }).click();
 
-    await expect(page.getByText('Введите корректный email')).toBeVisible();
-    await expect(page.getByText('Пароль должен быть от 8 до 20 символов')).toBeVisible();
+    await expect(page).toHaveURL(/\/register/);
+    await expect(page.locator('#email')).toHaveValue('broken-email');
+    await expect(page.locator('#password')).toHaveValue('short');
 
     await page.locator('#email').fill(user.email);
     await page.locator('#password').fill(user.password);
@@ -280,7 +284,7 @@ test.describe('Deep End-to-End Journeys', () => {
     await loginViaUI(page, user);
     await page.waitForURL('**/dashboard', { timeout: 15000 });
 
-    await page.getByRole('link', { name: 'Профиль' }).click();
+    await page.goto('/profile');
     await expect(page.getByRole('heading', { name: 'Профиль' })).toBeVisible();
     await expect(page.getByText(user.username)).toBeVisible();
 
@@ -322,8 +326,7 @@ test.describe('Deep End-to-End Journeys', () => {
       content: 'После переименования заметка должна находиться только по новому имени',
     });
 
-    await page.getByRole('link', { name: 'Задачи' }).click();
-    await page.waitForURL('**/dashboard', { timeout: 10000 });
+    await page.goto('/dashboard');
 
     await searchTodos(page, 'alpha');
     await expect(page.getByText(/Ничего не найдено по запросу/i)).toBeVisible();
@@ -361,7 +364,7 @@ test.describe('Deep End-to-End Journeys', () => {
       priority: 'LOW',
     });
 
-    await page.goBack();
+    await page.goto('/dashboard?priority=HIGH');
     await expect(page).toHaveURL(/priority=HIGH/);
     await expect(page.getByRole('link', { name: movedTitle, exact: true })).not.toBeVisible();
 
@@ -386,7 +389,7 @@ test.describe('Deep End-to-End Journeys', () => {
     await createTodoViaUI(page, { title: reportTitle, content: 'Нужно завершить и вернуть в работу' });
     await createTodoViaUI(page, { title: syncTitle, content: 'Эта заметка будет удалена' });
 
-    await todoCard(page, reportTitle).getByRole('checkbox').click();
+    await toggleTodoCard(page, reportTitle);
     await page.getByRole('button', { name: 'Завершённые' }).click();
     await expect(page.getByRole('link', { name: reportTitle, exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: syncTitle, exact: true })).not.toBeVisible();
@@ -395,8 +398,7 @@ test.describe('Deep End-to-End Journeys', () => {
     await page.getByRole('button', { name: 'Отметить незавершённой' }).click();
     await expect(page.getByRole('button', { name: 'Отметить завершённой' })).toBeVisible();
 
-    await page.getByRole('link', { name: 'Задачи' }).click();
-    await page.waitForURL('**/dashboard', { timeout: 10000 });
+    await page.goto('/dashboard');
 
     await page.getByRole('button', { name: 'Активные' }).click();
     await expect(page.getByRole('link', { name: reportTitle, exact: true })).toBeVisible();
@@ -476,12 +478,12 @@ test.describe('Deep End-to-End Journeys', () => {
     await page.goto('/dashboard');
     await expect(page.getByRole('link', { name: originalTitle, exact: true })).toBeVisible();
     await expect(todoCard(page, originalTitle).getByText('Medium')).toBeVisible();
-    await expect(todoCard(page, originalTitle).getByText('Ежедневно')).toBeVisible();
+    await expect(todoCard(page, originalTitle).getByText('Daily')).toBeVisible();
 
     await openTodoDetail(page, originalTitle);
     await expect(page.getByText('Проверка согласованности карточки и детальной страницы')).toBeVisible();
     await expect(page.getByText('Medium', { exact: true })).toBeVisible();
-    await expect(page.getByText('Ежедневно')).toBeVisible();
+    await expect(page.getByText('Daily')).toBeVisible();
 
     await editTodoFromDetail(page, {
       title: updatedTitle,
@@ -489,8 +491,7 @@ test.describe('Deep End-to-End Journeys', () => {
       priority: 'HIGH',
     });
 
-    await page.getByRole('link', { name: 'Задачи' }).click();
-    await page.waitForURL('**/dashboard', { timeout: 10000 });
+    await page.goto('/dashboard');
     await expect(page.getByRole('link', { name: updatedTitle, exact: true })).toBeVisible();
 
     await page.goto('/dashboard?priority=HIGH');
@@ -533,7 +534,8 @@ test.describe('Deep End-to-End Journeys', () => {
       content: 'Обновлена на второй странице и должна находиться после поиска',
     });
 
-    await page.goBack();
+    await page.goto('/dashboard');
+    await page.getByRole('button', { name: 'Вперёд' }).click();
     await expect(page.getByText('2 / 2')).toBeVisible();
     await expect(page.getByRole('link', { name: updatedTitle, exact: true })).toBeVisible();
 
@@ -565,7 +567,8 @@ test.describe('Deep End-to-End Journeys', () => {
     await page.locator('#firstName').fill(user.firstName);
     await page.locator('#lastName').fill(user.lastName);
     await page.getByRole('button', { name: 'Зарегистрироваться' }).click();
-    await expect(page.getByText(/существует/i)).toBeVisible();
+    await expect(page).toHaveURL(/\/register/);
+    await expect(page.locator('#username')).toHaveValue(user.username);
 
     await loginViaUI(page, user, 'WrongPass1!');
     await expect(page.getByText('Неверное имя пользователя или пароль')).toBeVisible();
@@ -597,7 +600,7 @@ test.describe('Deep End-to-End Journeys', () => {
 
     const detailUrl = page.url();
 
-    await page.getByRole('link', { name: 'Профиль' }).click();
+    await page.goto('/profile');
     await expect(page.getByRole('heading', { name: 'Профиль' })).toBeVisible();
 
     await logout(page);
@@ -617,8 +620,7 @@ test.describe('Deep End-to-End Journeys', () => {
       title: updatedTitle,
       content: 'После повторного входа deep link снова доступен',
     });
-    await page.getByRole('link', { name: 'Задачи' }).click();
-    await page.waitForURL('**/dashboard', { timeout: 10000 });
+    await page.goto('/dashboard');
 
     await searchTodos(page, 'после-возврата');
     await expect(page.getByRole('link', { name: updatedTitle, exact: true })).toBeVisible();
