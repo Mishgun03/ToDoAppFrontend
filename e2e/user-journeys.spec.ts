@@ -611,6 +611,10 @@ test.describe('Deep End-to-End Journeys', () => {
         buffer: Buffer.from('{"ok":true}'),
       },
     ]);
+    await expect(createDialog.locator('ul')).toContainText([
+      'brief.txt',
+      'evidence.json',
+    ]);
 
     await createDialog.getByRole('button', { name: 'Создать' }).click();
     await expect(createDialog).not.toBeVisible({ timeout: 10000 });
@@ -635,6 +639,7 @@ test.describe('Deep End-to-End Journeys', () => {
       mimeType: 'text/markdown',
       buffer: Buffer.from('# uploaded later'),
     });
+    await expect(editDialog.locator('ul').last()).toContainText('notes.md');
 
     await editDialog.getByRole('button', { name: 'Сохранить' }).click();
     await expect(editDialog).not.toBeVisible({ timeout: 10000 });
