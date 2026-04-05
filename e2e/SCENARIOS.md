@@ -106,15 +106,16 @@
 7. The user searches for the remaining note.
 8. The user opens the detail page and confirms the surviving note content is intact.
 
-## J10. Protect a direct note link after logout and restore it after login
+## J10. Upload files, add one more later, and verify attachment visibility across the app
 
 1. The user logs in and creates a note.
-2. The user opens that note in detail view and keeps its direct URL.
-3. The user visits the profile page.
-4. The user logs out.
-5. The user tries to open the saved note URL directly and is redirected to login.
-6. The user also tries to open the dashboard directly and is blocked there too.
-7. The user logs in again.
-8. The user opens the saved detail URL successfully.
-9. The user edits the note title and description.
-10. The user returns to the dashboard, searches for the updated note, and deletes it.
+2. During creation, the user uploads two files.
+3. The user confirms both file names are listed before submitting.
+4. The user creates the note and confirms the dashboard card shows an attachment count.
+5. The user opens the note detail page and confirms both uploaded files are listed there.
+6. The user edits the same note.
+7. The user changes the title and description and uploads one more file.
+8. The user confirms the existing attachments and the newly added file are all visible.
+9. The user saves the note and confirms the detail page now shows three attachments.
+10. The user opens the profile page and verifies the storage section is visible.
+11. The user returns to the dashboard, searches for the edited note, and deletes it.

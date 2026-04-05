@@ -17,7 +17,7 @@ The suite replaces the previous smoke-style checks with 10 deep user journeys th
 | J7 | Keep dashboard metadata and detail metadata aligned | Logged-in user | Seed note with deadline, repeat, and priority, inspect dashboard card, inspect detail page, edit title/content/priority, open new priority view | Card and detail stay consistent after edits and priority change |
 | J8 | Update a note from page two and remove it after search | Logged-in user | Create one note, add enough notes for pagination, open page two, edit the target note, return to page two, search it, delete it | Pagination remains usable, edited note is found from search, deletion removes it from results |
 | J9 | Recover from duplicate registration and wrong-password login | Registration page available | Register user, try duplicate registration, fail login once, log in correctly, create two notes, delete one, search remaining one | Duplicate account is rejected, login recovery works, product flow continues normally |
-| J10 | Protect a deep link after logout and restore access later | Logged-in user with one note | Open note detail, capture URL, visit profile, log out, retry deep link, log back in, reopen deep link, edit and delete note | Protected routes redirect when logged out and restore correctly after re-authentication |
+| J10 | Upload files on create, add another file on edit, and verify attachment surfaces | Logged-in user | Create note with two files, verify card count, verify detail attachments, edit note and upload third file, verify updated attachment list, open profile, search and delete note | Uploaded files appear during create and edit flows, detail page reflects attachment growth, and profile remains reachable after attachment work |
 
 ## Coverage Map
 
@@ -26,7 +26,7 @@ The suite replaces the previous smoke-style checks with 10 deep user journeys th
 | Registration validation | J2, J9 |
 | Duplicate registration handling | J9 |
 | Login error handling | J2, J9 |
-| Logout and route protection | J2, J10 |
+| Logout and route protection | J2 |
 | Create note | J1, J2, J3, J5, J8, J9, J10 |
 | Edit note | J1, J3, J4, J6, J7, J8, J10 |
 | Delete note | J1, J3, J5, J8, J9, J10 |
@@ -36,4 +36,5 @@ The suite replaces the previous smoke-style checks with 10 deep user journeys th
 | Priority filters | J4, J7 |
 | Smart list | J6 |
 | Pagination | J8 |
+| File upload and attachments | J10 |
 | Profile navigation | J2, J10 |

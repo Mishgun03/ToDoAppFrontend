@@ -20,14 +20,14 @@
 | J7 | Keep dashboard metadata and detail metadata consistent | Prepared, not run |
 | J8 | Update a note from page two and remove it after searching | Prepared, not run |
 | J9 | Recover from duplicate registration and bad-password login | Prepared, not run |
-| J10 | Protect a direct note link after logout and restore it after login | Prepared, not run |
+| J10 | Upload files on create, add another file on edit, and verify attachment surfaces | Prepared, not run |
 
 ## Coverage Summary
 
-- Authentication: register, login, invalid login, duplicate registration, logout, protected-route recovery
+- Authentication: register, login, invalid login, duplicate registration, logout
 - Dashboard: create, search, status filters, priority filters, pagination, empty states
 - Note lifecycle: create, edit, delete, complete, reopen, detail-page verification
-- Cross-view consistency: dashboard to detail, smart list to full list, deep-link protection
+- Cross-view consistency: dashboard to detail, smart list to full list, attachment visibility across views
 
 ## Static Risks And Assumptions
 

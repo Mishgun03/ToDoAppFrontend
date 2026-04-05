@@ -585,44 +585,74 @@ test.describe('Deep End-to-End Journeys', () => {
     await expect(page.getByText('Должна остаться после восстановления')).toBeVisible();
   });
 
-  test('J10: protect a direct note link after logout, then restore access and finish the note flow', async ({
+  test('J10: upload files to a note, add another file later, verify them in detail and profile, then delete the note', async ({
     page,
   }) => {
-    const user = await registerAndLogin(page);
-    const originalTitle = uniqueValue('защищенная-ссылка');
-    const updatedTitle = `${originalTitle}-после-возврата`;
+    await registerAndLogin(page);
 
-    await createTodoViaUI(page, {
-      title: originalTitle,
-      content: 'Эта заметка нужна для проверки защищенного deep link',
+    const todoTitle = uniqueValue('файлы-для-заявки');
+    const updatedTitle = `${todoTitle}-проверено`;
+
+    await page.getByRole('button', { name: /Новая задача/i }).click();
+
+    const createDialog = page.getByRole('dialog', { name: 'Новая задача' });
+    await expect(createDialog).toBeVisible();
+    await createDialog.locator('#create-title').fill(todoTitle);
+    await createDialog.locator('#create-content').fill('Заметка с файлами для проверки загрузки');
+    await createDialog.locator('input[type="file"]').setInputFiles([
+      {
+        name: 'brief.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('brief file for upload scenario'),
+      },
+      {
+        name: 'evidence.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from('{"ok":true}'),
+      },
+    ]);
+
+    await expect(createDialog.getByText('brief.txt')).toBeVisible();
+    await expect(createDialog.getByText('evidence.json')).toBeVisible();
+    await createDialog.getByRole('button', { name: 'Создать' }).click();
+    await expect(createDialog).not.toBeVisible({ timeout: 10000 });
+
+    const card = todoCard(page, todoTitle);
+    await expect(card.getByText('2')).toBeVisible();
+
+    await openTodoDetail(page, todoTitle);
+    await expect(page.getByRole('heading', { name: todoTitle, exact: true })).toBeVisible();
+    await expect(page.getByText('Файлы (2)')).toBeVisible();
+    await expect(page.getByText('brief.txt')).toBeVisible();
+    await expect(page.getByText('evidence.json')).toBeVisible();
+
+    await page.getByRole('button', { name: /Изменить/i }).click();
+    const editDialog = page.getByRole('dialog', { name: 'Редактировать задачу' });
+    await expect(editDialog).toBeVisible();
+    await editDialog.locator('#edit-title').fill(updatedTitle);
+    await editDialog.locator('#edit-content').fill('После редактирования к заметке добавлен третий файл');
+    await editDialog.locator('input[type="file"]').setInputFiles({
+      name: 'notes.md',
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('# uploaded later'),
     });
-    await openTodoDetail(page, originalTitle);
 
-    const detailUrl = page.url();
+    await expect(editDialog.getByText('brief.txt')).toBeVisible();
+    await expect(editDialog.getByText('evidence.json')).toBeVisible();
+    await expect(editDialog.getByText('notes.md')).toBeVisible();
+    await editDialog.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(editDialog).not.toBeVisible({ timeout: 10000 });
+
+    await expect(page.getByRole('heading', { name: updatedTitle, exact: true })).toBeVisible();
+    await expect(page.getByText('Файлы (3)')).toBeVisible();
+    await expect(page.getByText('notes.md')).toBeVisible();
 
     await page.goto('/profile');
     await expect(page.getByRole('heading', { name: 'Профиль' })).toBeVisible();
+    await expect(page.getByText(/Использовано|Хранилище|Место/i)).toBeVisible();
 
-    await logout(page);
-
-    await page.goto(detailUrl);
-    await page.waitForURL('**/login', { timeout: 10000 });
     await page.goto('/dashboard');
-    await page.waitForURL('**/login', { timeout: 10000 });
-
-    await loginViaUI(page, user);
-    await page.waitForURL('**/dashboard', { timeout: 15000 });
-
-    await page.goto(detailUrl);
-    await expect(page.getByRole('heading', { name: originalTitle, exact: true })).toBeVisible();
-
-    await editTodoFromDetail(page, {
-      title: updatedTitle,
-      content: 'После повторного входа deep link снова доступен',
-    });
-    await page.goto('/dashboard');
-
-    await searchTodos(page, 'после-возврата');
+    await searchTodos(page, 'проверено');
     await expect(page.getByRole('link', { name: updatedTitle, exact: true })).toBeVisible();
     await deleteTodoFromCard(page, updatedTitle);
   });
