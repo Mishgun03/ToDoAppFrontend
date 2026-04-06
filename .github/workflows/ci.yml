@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm test
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: taskapi
+          POSTGRES_USER: taskapi
+          POSTGRES_PASSWORD: taskapi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U taskapi"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout frontend
+        uses: actions/checkout@v4
+
+      - name: Checkout API
+        uses: actions/checkout@v4
+        with:
+          repository: Sarpowski/ToDoApi
+          ref: fix/ci
+          path: api
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Start MinIO
+        run: |
+          docker run -d \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:RELEASE.2025-01-20T14-49-07Z \
+            server /data
+
+      - name: Create MinIO bucket
+        run: |
+          curl -sL https://dl.min.io/client/mc/release/linux-amd64/mc -o /tmp/mc
+          chmod +x /tmp/mc
+          for i in $(seq 1 10); do
+            /tmp/mc alias set local http://localhost:9000 minioadmin minioadmin && break
+            sleep 2
+          done
+          /tmp/mc mb --ignore-existing local/taskapi
+
+      - name: Start API server
+        working-directory: api
+        run: |
+          chmod +x gradlew
+          nohup ./gradlew bootRun > /tmp/api.log 2>&1 &
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/taskapi
+          DB_USER: taskapi
+          DB_PASSWORD: taskapi
+          S3_ENDPOINT: http://localhost:9000
+          S3_ACCESS_KEY: minioadmin
+          S3_SECRET_KEY: minioadmin
+          S3_BUCKET: taskapi
+          CORS_ALLOWED_ORIGINS: http://localhost:3000
+
+      - name: Wait for API to be ready
+        run: |
+          echo "Waiting for API on port 8080..."
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v3/api-docs 2>/dev/null | grep -qE "200|401|403"; then
+              echo "API is ready!"
+              exit 0
+            fi
+            echo "  attempt $i/60 — not ready yet"
+            sleep 5
+          done
+          echo "API failed to start. Last 50 lines of log:"
+          tail -50 /tmp/api.log
+          exit 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: npx playwright test
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8080/api/v1
+          E2E_BASE_URL: http://localhost:3000
+          E2E_API_URL: http://localhost:8080/api/v1
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Print API log on failure
+        if: failure()
+        run: cat /tmp/api.log

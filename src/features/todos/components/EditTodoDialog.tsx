@@ -99,7 +99,8 @@ export function EditTodoDialog({
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files) {
-      setNewFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+      const selectedFiles = Array.from(e.target.files);
+      setNewFiles((prev) => [...prev, ...selectedFiles]);
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   }

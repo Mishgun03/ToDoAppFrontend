@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Repeat, Paperclip, Calendar, MoreHorizontal, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,7 +34,6 @@ interface TodoCardProps {
 }
 
 export function TodoCard({ todo, onToggle, onDeleted, onUpdated }: TodoCardProps) {
-  const router = useRouter();
   const priorityCfg = PRIORITY_CONFIG[todo.priority];
   const deadline = todo.deadline ? formatDeadline(todo.deadline) : null;
 

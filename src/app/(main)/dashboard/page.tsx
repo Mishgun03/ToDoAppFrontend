@@ -2,11 +2,10 @@
 
 import { useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import useSWR, { useSWRConfig } from "swr";
+import useSWR from "swr";
 import {
   Search,
   Plus,
-  ListTodo,
   ClipboardList,
   Sparkles,
   ChevronLeft,
@@ -47,7 +46,6 @@ const PRIORITY_OPTIONS: { value: Priority | "ALL"; label: string }[] = [
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { mutate: globalMutate } = useSWRConfig();
 
   const view = searchParams.get("view");
   const paramPriority = searchParams.get("priority") as Priority | null;

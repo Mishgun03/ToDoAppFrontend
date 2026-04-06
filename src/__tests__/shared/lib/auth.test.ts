@@ -20,119 +20,86 @@ describe("auth token management", () => {
   });
 
   describe("setToken()", () => {
-    it("stores token in localStorage", () => {
+    it("stores token in localStorage and cookie", () => {
       setToken("abc123");
       expect(localStorage.getItem("todoapi_token")).toBe("abc123");
-    });
-
-    it("sets a cookie with the token", () => {
-      setToken("abc123");
       expect(document.cookie).toContain("todoapi_token=abc123");
     });
   });
 
   describe("getToken()", () => {
-    it("returns token from localStorage", () => {
-      localStorage.setItem("todoapi_token", "mytoken");
-      expect(getToken()).toBe("mytoken");
-    });
-
-    it("returns null when no token stored", () => {
-      expect(getToken()).toBeNull();
+    it.each([
+      ["returns token when stored", "mytoken", "mytoken"],
+      ["returns null when empty", null, null],
+    ])("%s", (_label, stored, expected) => {
+      if (stored) localStorage.setItem("todoapi_token", stored);
+      expect(getToken()).toBe(expected);
     });
   });
 
   describe("clearToken()", () => {
-    it("removes token from localStorage", () => {
-      localStorage.setItem("todoapi_token", "mytoken");
-      clearToken();
-      expect(localStorage.getItem("todoapi_token")).toBeNull();
-    });
-
-    it("clears the cookie", () => {
+    it("removes token from localStorage and cookie", () => {
       setToken("mytoken");
       clearToken();
+      expect(localStorage.getItem("todoapi_token")).toBeNull();
       expect(document.cookie).not.toContain("todoapi_token=mytoken");
     });
   });
 });
 
 describe("decodeToken()", () => {
-  it("decodes a valid JWT payload", () => {
-    const token = makeJwt({ sub: "42", username: "alice", exp: 9999999999 });
-    const result = decodeToken(token);
-    expect(result).toEqual({
-      sub: "42",
-      username: "alice",
-      exp: 9999999999,
-    });
+  // валидные токены
+  it.each([
+    [
+      { sub: "42", username: "alice", exp: 9999999999 },
+      { sub: "42", username: "alice", exp: 9999999999 },
+    ],
+    [
+      { sub: "1", username: "bob" },
+      { sub: "1", username: "bob" },
+    ],
+    [
+      { sub: "1", username: "u", iat: 1000 },
+      { sub: "1", username: "u", iat: 1000 },
+    ],
+  ])("decodes payload %j correctly", (payload, expected) => {
+    expect(decodeToken(makeJwt(payload))).toEqual(expected);
   });
 
-  it("returns sub and username fields", () => {
-    const token = makeJwt({ sub: "1", username: "bob" });
-    const result = decodeToken(token);
-    expect(result?.sub).toBe("1");
-    expect(result?.username).toBe("bob");
-  });
-
-  it("returns null for a token with wrong number of parts", () => {
-    expect(decodeToken("only.two")).toBeNull();
-    expect(decodeToken("one")).toBeNull();
-    expect(decodeToken("a.b.c.d")).toBeNull();
-  });
-
-  it("returns null for invalid base64 payload", () => {
-    expect(decodeToken("a.!!!invalid!!!.c")).toBeNull();
-  });
-
-  it("returns null for non-JSON payload", () => {
-    const fakePayload = btoa("not json at all");
-    expect(decodeToken(`a.${fakePayload}.c`)).toBeNull();
-  });
-
-  it("returns null for empty string", () => {
-    expect(decodeToken("")).toBeNull();
-  });
-
-  it("preserves optional iat field", () => {
-    const token = makeJwt({ sub: "1", username: "u", iat: 1000 });
-    expect(decodeToken(token)?.iat).toBe(1000);
+  // невалидные токены - null
+  it.each([
+    ["wrong part count (2)", "only.two"],
+    ["wrong part count (1)", "one"],
+    ["wrong part count (4)", "a.b.c.d"],
+    ["invalid base64", "a.!!!invalid!!!.c"],
+    ["non-JSON payload", `a.${btoa("not json")}.c`],
+    ["empty string", ""],
+  ])("returns null for %s", (_label, token) => {
+    expect(decodeToken(token)).toBeNull();
   });
 });
 
 describe("isTokenExpired()", () => {
-  it("returns false for a token expiring far in the future", () => {
-    const token = makeJwt({
-      sub: "1",
-      username: "u",
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    });
-    expect(isTokenExpired(token)).toBe(false);
+  const nowSec = () => Math.floor(Date.now() / 1000);
+
+  it.each([
+    ["future exp", { exp: nowSec() + 3600 }, false],
+    ["past exp", { exp: nowSec() - 3600 }, true],
+    ["no exp field", {}, true],
+  ])("%s → %s", (_label, extra, expected) => {
+    const token = makeJwt({ sub: "1", username: "u", ...extra });
+    expect(isTokenExpired(token)).toBe(expected);
   });
 
-  it("returns true for a token that already expired", () => {
-    const token = makeJwt({
-      sub: "1",
-      username: "u",
-      exp: Math.floor(Date.now() / 1000) - 3600,
-    });
-    expect(isTokenExpired(token)).toBe(true);
-  });
-
-  it("returns true when exp is exactly now (edge case)", () => {
-    const nowSec = Math.floor(Date.now() / 1000);
-    vi.spyOn(Date, "now").mockReturnValue(nowSec * 1000);
-    const token = makeJwt({ sub: "1", username: "u", exp: nowSec });
+  it("returns true when exp === now", () => {
+    const now = nowSec();
+    vi.spyOn(Date, "now").mockReturnValue(now * 1000);
+    const token = makeJwt({ sub: "1", username: "u", exp: now });
     expect(isTokenExpired(token)).toBe(true);
     vi.restoreAllMocks();
   });
 
-  it("returns true when token has no exp field", () => {
-    const token = makeJwt({ sub: "1", username: "u" });
-    expect(isTokenExpired(token)).toBe(true);
-  });
-
-  it("returns true for an invalid token", () => {
+  it("returns true for garbage token", () => {
     expect(isTokenExpired("garbage")).toBe(true);
   });
 });

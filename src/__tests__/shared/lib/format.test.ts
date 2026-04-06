@@ -7,87 +7,47 @@ import {
 } from "@/shared/lib/format";
 
 describe("formatBytes()", () => {
-  it("returns '0 Б' for 0 bytes", () => {
-    expect(formatBytes(0)).toBe("0 Б");
+  it.each([
+    [0, "0 Б"],
+    [1, "1 Б"],
+    [500, "500 Б"],
+    [1024, "1 КБ"],
+    [1536, "1.5 КБ"],
+    [2048, "2 КБ"],
+    [1024 * 1024, "1 МБ"],
+    [1.5 * 1024 * 1024, "1.5 МБ"],
+    [500 * 1024 * 1024, "500 МБ"],
+    [1024 * 1024 * 1024, "1 ГБ"],
+  ])("formatBytes(%d) → '%s'", (input, expected) => {
+    expect(formatBytes(input)).toBe(expected);
   });
 
-  it("formats bytes", () => {
-    expect(formatBytes(500)).toBe("500 Б");
-  });
-
-  it("formats kilobytes", () => {
-    expect(formatBytes(1024)).toBe("1 КБ");
-  });
-
-  it("formats kilobytes with decimal", () => {
-    expect(formatBytes(1536)).toBe("1.5 КБ");
-  });
-
-  it("formats megabytes", () => {
-    expect(formatBytes(1024 * 1024)).toBe("1 МБ");
-  });
-
-  it("formats megabytes with decimal", () => {
-    expect(formatBytes(1.5 * 1024 * 1024)).toBe("1.5 МБ");
-  });
-
-  it("formats gigabytes", () => {
-    expect(formatBytes(1024 * 1024 * 1024)).toBe("1 ГБ");
-  });
-
-  it("formats large megabyte values", () => {
-    expect(formatBytes(500 * 1024 * 1024)).toBe("500 МБ");
-  });
-
-  it("formats 2048 bytes as 2 КБ", () => {
-    expect(formatBytes(2048)).toBe("2 КБ");
-  });
-
-  it("formats 1 byte", () => {
-    expect(formatBytes(1)).toBe("1 Б");
+  it.each([-1, -100])("returns '0 Б' for negative input (%d)", (input) => {
+    expect(formatBytes(input)).toBe("0 Б");
   });
 });
 
 describe("formatDate()", () => {
-  it("formats ISO date string to Russian locale", () => {
-    const result = formatDate("2024-01-15T12:00:00Z");
-    expect(result).toMatch(/15/);
-    expect(result).toMatch(/янв/i);
-    expect(result).toMatch(/2024/);
-  });
-
-  it("formats another date correctly", () => {
-    const result = formatDate("2024-12-25T00:00:00Z");
-    expect(result).toMatch(/25/);
-    expect(result).toMatch(/дек/i);
-    expect(result).toMatch(/2024/);
-  });
-
-  it("handles date without time zone", () => {
-    const result = formatDate("2023-06-01");
-    expect(result).toMatch(/2023/);
+  it.each([
+    ["2024-01-15T12:00:00Z", /15/, /янв/i, /2024/],
+    ["2024-12-25T00:00:00Z", /25/, /дек/i, /2024/],
+    ["2023-06-01", /2023/, /июн/i, /1/],
+  ])("formatDate('%s') contains expected parts", (iso, ...patterns) => {
+    const result = formatDate(iso as string);
+    for (const pattern of patterns) {
+      expect(result).toMatch(pattern as RegExp);
+    }
   });
 });
 
 describe("formatRelativeDate()", () => {
-  it("returns a string containing 'назад' for a past date", () => {
-    const pastDate = new Date(Date.now() - 3600 * 1000).toISOString();
-    expect(formatRelativeDate(pastDate)).toContain("назад");
-  });
-
-  it("returns a relative string for a very recent date", () => {
-    const recent = new Date(Date.now() - 30 * 1000).toISOString();
-    const result = formatRelativeDate(recent);
-    expect(result).toBeTruthy();
-    expect(typeof result).toBe("string");
-  });
-
-  it("returns a relative string for an older date", () => {
-    const oldDate = new Date(
-      Date.now() - 30 * 24 * 3600 * 1000,
-    ).toISOString();
-    const result = formatRelativeDate(oldDate);
-    expect(result).toContain("назад");
+  it.each([
+    ["1 hour ago", 3600 * 1000],
+    ["30 seconds ago", 30 * 1000],
+    ["30 days ago", 30 * 24 * 3600 * 1000],
+  ])("%s → contains 'назад'", (_label, msAgo) => {
+    const date = new Date(Date.now() - msAgo).toISOString();
+    expect(formatRelativeDate(date)).toContain("назад");
   });
 });
 
@@ -96,56 +56,50 @@ describe("formatDeadline()", () => {
     vi.useRealTimers();
   });
 
-  it("returns 'Сегодня' for today's date", () => {
-    const today = new Date();
-    today.setHours(23, 59, 0, 0);
-    const result = formatDeadline(today.toISOString());
-    expect(result.text).toBe("Сегодня");
+  const BASE = new Date(2025, 0, 15, 0, 0, 0);
+
+  const makeDate = (offsetDays: number) => {
+    const d = new Date(BASE);
+    d.setDate(d.getDate() + offsetDays);
+    return d.toISOString();
+  };
+
+  const useFrozenTime = () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE);
+  };
+
+  it("returns 'Сегодня' for today", () => {
+    useFrozenTime();
+    const result = formatDeadline(makeDate(0));
+    expect(result).toEqual({ text: "Сегодня", isOverdue: false });
+  });
+
+  it("returns 'Завтра' for tomorrow", () => {
+    useFrozenTime();
+    const result = formatDeadline(makeDate(1));
+    expect(result).toEqual({ text: "Завтра", isOverdue: false });
+  });
+
+  it.each([3, 5, 7])("%d days ahead → 'Через %d дн.'", (offset) => {
+    useFrozenTime();
+    const result = formatDeadline(makeDate(offset));
+    expect(result.text).toBe(`Через ${offset} дн.`);
     expect(result.isOverdue).toBe(false);
   });
 
-  it("returns 'Завтра' for tomorrow's date", () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(12, 0, 0, 0);
-    const result = formatDeadline(tomorrow.toISOString());
-    expect(result.text).toBe("Завтра");
-    expect(result.isOverdue).toBe(false);
-  });
-
-  it("returns overdue text for a past date", () => {
-    const past = new Date();
-    past.setDate(past.getDate() - 5);
-    past.setHours(12, 0, 0, 0);
-    const result = formatDeadline(past.toISOString());
-    expect(result.text).toContain("Просрочено");
+  it.each([1, 5, 10])("%d days ago → overdue", (offset) => {
+    useFrozenTime();
+    const result = formatDeadline(makeDate(-offset));
+    expect(result.text).toBe(`Просрочено на ${offset} дн.`);
     expect(result.isOverdue).toBe(true);
   });
 
-  it("returns 'Через N дн.' for a date within 7 days", () => {
-    const future = new Date();
-    future.setDate(future.getDate() + 3);
-    future.setHours(12, 0, 0, 0);
-    const result = formatDeadline(future.toISOString());
-    expect(result.text).toMatch(/Через \d+ дн\./);
-    expect(result.isOverdue).toBe(false);
-  });
-
-  it("returns formatted date for a date more than 7 days away", () => {
-    const farFuture = new Date();
-    farFuture.setDate(farFuture.getDate() + 30);
-    const result = formatDeadline(farFuture.toISOString());
+  it("returns formatted date for 30+ days away", () => {
+    useFrozenTime();
+    const result = formatDeadline(makeDate(30));
     expect(result.isOverdue).toBe(false);
     expect(result.text).not.toContain("Через");
     expect(result.text).not.toContain("Просрочено");
-  });
-
-  it("overdue result includes day count", () => {
-    const past = new Date();
-    past.setDate(past.getDate() - 10);
-    past.setHours(0, 0, 0, 0);
-    const result = formatDeadline(past.toISOString());
-    expect(result.text).toMatch(/\d+/);
-    expect(result.isOverdue).toBe(true);
   });
 });

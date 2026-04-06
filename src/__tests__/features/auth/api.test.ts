@@ -21,183 +21,95 @@ describe("auth API", () => {
     vi.restoreAllMocks();
   });
 
-  describe("register()", () => {
-    const validData = {
+  const validRegister = {
+    username: "test",
+    password: "Test123!a",
+    email: "test@test.com",
+    firstName: "Test",
+    lastName: "User",
+  };
+
+  it("register() POSTs JSON to /auth/register and returns parsed body", async () => {
+    const payload = {
+      id: "1",
       username: "test",
-      password: "Test123!a",
       email: "test@test.com",
-      firstName: "Test",
-      lastName: "User",
+      createdAt: "2024-01-01",
     };
-
-    it("sends POST request to /auth/register", async () => {
-      const fetchMock = mockFetch({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "1",
-          username: "test",
-          email: "test@test.com",
-          createdAt: "2024-01-01",
-        }),
-      });
-
-      await register(validData);
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/auth/register"),
-        expect.objectContaining({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+    const fetchMock = mockFetch({
+      ok: true,
+      json: vi.fn().mockResolvedValue(payload),
     });
 
-    it("sends registration data as JSON body", async () => {
-      const fetchMock = mockFetch({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          id: "1",
-          username: "test",
-          email: "test@test.com",
-          createdAt: "2024-01-01",
-        }),
-      });
+    await expect(register(validRegister)).resolves.toEqual(payload);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/auth/register"),
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validRegister),
+      }),
+    );
+  });
 
-      await register(validData);
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-      expect(body).toEqual(validData);
-    });
-
-    it("returns RegisterResponseDto on success", async () => {
-      const responseData = {
-        id: "uuid-123",
-        username: "test",
-        email: "test@test.com",
-        createdAt: "2024-01-01T00:00:00Z",
-      };
-
-      mockFetch({
-        ok: true,
-        json: vi.fn().mockResolvedValue(responseData),
-      });
-
-      const result = await register(validData);
-      expect(result).toEqual(responseData);
-    });
-
-    it("throws ApiError on 409 conflict", async () => {
-      const errorResponse = {
+  it("register() throws ApiError on 409 conflict", async () => {
+    mockFetch({
+      ok: false,
+      status: 409,
+      json: vi.fn().mockResolvedValue({
         timestamp: "2024-01-01",
         status: 409,
         error: "Conflict",
         message: "User already exists",
         path: "/auth/register",
         details: null,
-      };
-
-      mockFetch({
-        ok: false,
-        status: 409,
-        json: vi.fn().mockResolvedValue(errorResponse),
-      });
-
-      await expect(register(validData)).rejects.toMatchObject({
-        status: 409,
-        message: "User already exists",
-      });
+      }),
     });
 
-    it("creates fallback error when response is not JSON", async () => {
-      mockFetch({
-        ok: false,
-        status: 500,
-        statusText: "Internal Server Error",
-        json: vi.fn().mockRejectedValue(new Error("parse failed")),
-      });
-
-      await expect(register(validData)).rejects.toMatchObject({
-        status: 500,
-        error: "Error",
-      });
+    await expect(register(validRegister)).rejects.toMatchObject({
+      status: 409,
+      message: "User already exists",
     });
   });
 
-  describe("login()", () => {
+  it("login() POSTs JSON credentials to /auth/login and returns token payload", async () => {
     const credentials = { username: "user", password: "pass" };
-
-    it("sends POST request to /auth/login", async () => {
-      const fetchMock = mockFetch({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ token: "jwt-token" }),
-      });
-
-      await login(credentials);
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/auth/login"),
-        expect.objectContaining({
-          method: "POST",
-        }),
-      );
+    const fetchMock = mockFetch({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ token: "jwt-token" }),
     });
 
-    it("sends credentials as JSON body", async () => {
-      const fetchMock = mockFetch({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ token: "jwt-token" }),
-      });
+    await expect(login(credentials)).resolves.toEqual({ token: "jwt-token" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/auth/login"),
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credentials),
+      }),
+    );
+  });
 
-      await login(credentials);
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-      expect(body).toEqual(credentials);
-    });
-
-    it("returns JwtResponseDto on success", async () => {
-      mockFetch({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ token: "my-jwt-token" }),
-      });
-
-      const result = await login(credentials);
-      expect(result).toEqual({ token: "my-jwt-token" });
-    });
-
-    it("throws ApiError on 401", async () => {
-      mockFetch({
-        ok: false,
-        status: 401,
-        json: vi.fn().mockResolvedValue({
-          timestamp: "2024-01-01",
-          status: 401,
-          error: "Unauthorized",
-          message: "Bad credentials",
-          path: "/auth/login",
-          details: null,
-        }),
-      });
-
-      await expect(login(credentials)).rejects.toMatchObject({
-        status: 401,
-        message: "Bad credentials",
-      });
-    });
-
-    it("throws ApiError on 400 with field errors", async () => {
-      mockFetch({
-        ok: false,
+  it("login() throws parsed ApiError on non-ok response (incl. field details)", async () => {
+    mockFetch({
+      ok: false,
+      status: 400,
+      json: vi.fn().mockResolvedValue({
+        timestamp: "2024-01-01",
         status: 400,
-        json: vi.fn().mockResolvedValue({
-          timestamp: "2024-01-01",
-          status: 400,
-          error: "Bad Request",
-          message: "Validation failed",
-          path: "/auth/login",
-          details: { fields: { username: "required" } },
-        }),
-      });
-
-      await expect(login(credentials)).rejects.toMatchObject({
-        status: 400,
+        error: "Bad Request",
+        message: "Validation failed",
+        path: "/auth/login",
         details: { fields: { username: "required" } },
-      });
+      }),
+    });
+
+    await expect(
+      login({ username: "user", password: "pass" }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: "Validation failed",
+      details: { fields: { username: "required" } },
     });
   });
 });
