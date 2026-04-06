@@ -1,16 +1,14 @@
 "use client";
 
-import { useMemo, useCallback, useEffect, useState } from "react";
+import { useMemo, useCallback, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { getToken, clearToken, decodeToken } from "./auth";
 
+const emptySubscribe = () => () => {};
+
 export function useAuth() {
   const router = useRouter();
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
+  const hydrated = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   const token = hydrated ? getToken() : null;
 
